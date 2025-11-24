@@ -1,0 +1,32 @@
+# Volumes Docker
+jenkins-master-data/
+jenkins-slave-data/
+gitlab-data/
+gitlab-config/
+gitlab-logs/
+sonarqube-data/
+sonarqube-extensions/
+sonarqube-logs/
+postgresql-data/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Backup files
+*.bak
+*.backup
+
+# Temporary files
+tmp/
+temp/

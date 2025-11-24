@@ -1,0 +1,309 @@
+#!/usr/bin/env groovy
+
+/**
+ * Jenkinsfile - Pipeline CI/CD pour Sample Node.js App
+ * 
+ * Ce pipeline démontre les meilleures pratiques CI/CD:
+ * - Build multi-étapes avec validation
+ * - Tests automatisés
+ * - Analyse de qualité de code
+ * - Construction d'image Docker
+ * - Déploiement automatisé
+ */
+
+pipeline {
+    agent {
+        label 'docker'
+    }
+    
+    tools {
+        nodejs 'node'  // Configuré dans Jenkins Global Tool Configuration
+    }
+    
+    environment {
+        // Variables d'environnement
+        APP_NAME = 'sample-nodejs-app'
+        DOCKER_IMAGE = "${APP_NAME}:${BUILD_NUMBER}"
+        DOCKER_IMAGE_LATEST = "${APP_NAME}:latest"
+        STAGING_SERVER = 'staging-server'
+        STAGING_PORT = '8082'
+        
+        // Credentials (à configurer dans Jenkins)
+        // DOCKER_REGISTRY_CREDS = credentials('docker-registry')
+        // SONARQUBE_TOKEN = credentials('sonarqube-token')
+    }
+    
+    options {
+        // Options du pipeline
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+    
+    stages {
+        
+        stage('📋 Initialization') {
+            steps {
+                script {
+                    echo '='.repeat(50)
+                    echo "🚀 Starting CI/CD Pipeline"
+                    echo "📦 Application: ${APP_NAME}"
+                    echo "🏷️  Build Number: ${BUILD_NUMBER}"
+                    echo "🔨 Build ID: ${BUILD_ID}"
+                    echo "👤 Started by: ${BUILD_USER ?: 'SCM'}"
+                    echo '='.repeat(50)
+                    
+                    // Afficher les informations de l'environnement
+                    sh '''
+                        echo "Node version: $(node --version)"
+                        echo "NPM version: $(npm --version)"
+                        echo "Docker version: $(docker --version)"
+                    '''
+                }
+            }
+        }
+        
+        stage('📦 Checkout') {
+            steps {
+                echo '📥 Récupération du code source...'
+                checkout scm
+                
+                script {
+                    // Afficher les informations Git
+                    sh '''
+                        echo "Git Branch: $(git branch --show-current)"
+                        echo "Git Commit: $(git rev-parse --short HEAD)"
+                        echo "Git Author: $(git log -1 --pretty=format:'%an')"
+                    '''
+                }
+            }
+        }
+        
+        stage('🔍 Code Analysis') {
+            parallel {
+                stage('Lint') {
+                    steps {
+                        echo '🔍 Analyse du code avec ESLint...'
+                        sh 'npm install --save-dev eslint'
+                        sh 'npm run lint || true'
+                    }
+                }
+                
+                stage('Security Scan') {
+                    steps {
+                        echo '🔒 Analyse de sécurité des dépendances...'
+                        sh 'npm audit --audit-level=moderate || true'
+                    }
+                }
+            }
+        }
+        
+        stage('📚 Install Dependencies') {
+            steps {
+                echo '📚 Installation des dépendances NPM...'
+                sh 'npm ci'
+                
+                script {
+                    // Afficher les dépendances installées
+                    sh 'npm list --depth=0'
+                }
+            }
+        }
+        
+        stage('🧪 Run Tests') {
+            steps {
+                echo '🧪 Exécution des tests unitaires...'
+                sh 'npm test'
+            }
+            post {
+                always {
+                    // Archiver les résultats de tests
+                    junit(testResults: '**/junit.xml', allowEmptyResults: true)
+                    
+                    // Publier le rapport de couverture
+                    publishHTML(target: [
+                        allowMissing: true,
+                        alwaysLinkToLastBuild: true,
+                        keepAll: true,
+                        reportDir: 'coverage',
+                        reportFiles: 'index.html',
+                        reportName: 'Coverage Report'
+                    ])
+                }
+            }
+        }
+        
+        stage('🐳 Build Docker Image') {
+            steps {
+                script {
+                    echo '🐳 Construction de l\'image Docker...'
+                    
+                    // Construire l'image avec le plugin Docker
+                    docker.build("${DOCKER_IMAGE}", ".")
+                    
+                    // Tagger aussi comme latest
+                    sh "docker tag ${DOCKER_IMAGE} ${DOCKER_IMAGE_LATEST}"
+                    
+                    echo "✅ Image construite: ${DOCKER_IMAGE}"
+                }
+            }
+        }
+        
+        stage('✅ Test Docker Image') {
+            steps {
+                script {
+                    echo '✅ Test de l\'image Docker...'
+                    
+                    // Tester que l'image démarre correctement
+                    docker.image("${DOCKER_IMAGE}").inside {
+                        sh '''
+                            echo "=== Test de l'image Docker ==="
+                            ls -la
+                            cat package.json
+                            node --version
+                            npm --version
+                        '''
+                    }
+                    
+                    // Optionnel: démarrer un conteneur et tester l'endpoint
+                    sh """
+                        echo "Démarrage d'un conteneur de test..."
+                        CONTAINER_ID=\$(docker run -d -p 3001:3000 ${DOCKER_IMAGE})
+                        echo "Container ID: \$CONTAINER_ID"
+                        
+                        # Attendre que l'application démarre
+                        sleep 5
+                        
+                        # Tester le health check
+                        curl -f http://localhost:3001/health || exit 1
+                        
+                        # Arrêter et supprimer le conteneur
+                        docker stop \$CONTAINER_ID
+                        docker rm \$CONTAINER_ID
+                        
+                        echo "✅ Tests de l'image réussis"
+                    """
+                }
+            }
+        }
+        
+        stage('🚀 Deploy to Staging') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    echo '🚀 Déploiement sur le serveur de staging...'
+                    
+                    try {
+                        // Arrêter les anciens conteneurs
+                        sh """
+                            docker ps -a --filter "name=${APP_NAME}" -q | xargs -r docker stop || true
+                            docker ps -a --filter "name=${APP_NAME}" -q | xargs -r docker rm || true
+                        """
+                        
+                        // Démarrer le nouveau conteneur
+                        sh """
+                            docker run -d \
+                                --name ${APP_NAME} \
+                                --network jenkins-lab_jenkins-network \
+                                -p ${STAGING_PORT}:3000 \
+                                --restart unless-stopped \
+                                -e NODE_ENV=staging \
+                                ${DOCKER_IMAGE}
+                        """
+                        
+                        // Attendre que l'application démarre
+                        sleep 10
+                        
+                        // Vérifier que l'application répond
+                        sh """
+                            curl -f http://localhost:${STAGING_PORT}/health || exit 1
+                            curl http://localhost:${STAGING_PORT}/deployment/test
+                        """
+                        
+                        echo "✅ Déploiement réussi sur http://localhost:${STAGING_PORT}"
+                        
+                    } catch (Exception e) {
+                        echo "❌ Échec du déploiement: ${e.message}"
+                        throw e
+                    }
+                }
+            }
+        }
+        
+        stage('🔍 Post-Deployment Tests') {
+            when {
+                branch 'main'
+            }
+            steps {
+                script {
+                    echo '🔍 Tests post-déploiement...'
+                    
+                    sh """
+                        # Test de tous les endpoints
+                        echo "Test endpoint principal..."
+                        curl -f http://localhost:${STAGING_PORT}/ | jq .
+                        
+                        echo "Test health check..."
+                        curl -f http://localhost:${STAGING_PORT}/health | jq .
+                        
+                        echo "Test version..."
+                        curl -f http://localhost:${STAGING_PORT}/version | jq .
+                        
+                        echo "✅ Tous les tests post-déploiement sont passés"
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            echo '🧹 Nettoyage...'
+            
+            // Nettoyer le workspace
+            cleanWs(
+                deleteDirs: true,
+                disableDeferredWipeout: true,
+                notFailBuild: true
+            )
+        }
+        
+        success {
+            echo '='.repeat(50)
+            echo '✅ PIPELINE RÉUSSI!'
+            echo "📦 Application: ${APP_NAME}"
+            echo "🏷️  Version: ${BUILD_NUMBER}"
+            echo "🐳 Image: ${DOCKER_IMAGE}"
+            
+            script {
+                if (env.BRANCH_NAME == 'main') {
+                    echo "🚀 Déployé sur: http://localhost:${STAGING_PORT}"
+                }
+            }
+            
+            echo '='.repeat(50)
+            
+            // Optionnel: Envoyer une notification
+            // slackSend(color: 'good', message: "Pipeline ${APP_NAME} #${BUILD_NUMBER} réussi!")
+        }
+        
+        failure {
+            echo '='.repeat(50)
+            echo '❌ PIPELINE ÉCHOUÉ!'
+            echo "📦 Application: ${APP_NAME}"
+            echo "🏷️  Build: ${BUILD_NUMBER}"
+            echo "📋 Logs: ${BUILD_URL}console"
+            echo '='.repeat(50)
+            
+            // Optionnel: Envoyer une notification
+            // slackSend(color: 'danger', message: "Pipeline ${APP_NAME} #${BUILD_NUMBER} échoué!")
+        }
+        
+        unstable {
+            echo '⚠️  Pipeline instable - vérifier les warnings'
+        }
+    }
+}
