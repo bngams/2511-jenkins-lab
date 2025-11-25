@@ -146,11 +146,11 @@ Rechercher et installer les plugins suivants :
 
 ### 3.2 Connecter l'agent (méthode automatique via Docker)
 
-**Méthode recommandée** : Modifier le docker-compose.yml pour utiliser JNLP
+**Méthode recommandée** : Modifier le docker-compose.yml pour pouvoir connecter l'agent Jenkins au noeud principal. 
 
-Arrêter les services :
+Arrêter le service :
 ```bash
-docker-compose down
+docker-compose down jenkins-slave
 ```
 
 Modifier la section `jenkins-slave` dans `docker-compose.yml` :
@@ -164,7 +164,7 @@ jenkins-slave:
     - jenkins-slave-data:/home/jenkins
     - /var/run/docker.sock:/var/run/docker.sock
   environment:
-    - JENKINS_URL=http://jenkins-master:8080
+    - JENKINS_URL=http://jenkins-master:8080/jenkins
     - JENKINS_AGENT_NAME=docker-agent
     - JENKINS_SECRET=<À_RÉCUPÉRER_DEPUIS_JENKINS>
     - JENKINS_AGENT_WORKDIR=/home/jenkins
@@ -176,7 +176,7 @@ jenkins-slave:
 ```
 
 **Récupérer le secret depuis Jenkins** :
-- Aller dans le nœud créé
+- Depuis l'interface, se rendre dans le nœud créé
 - Noter le secret affiché
 
 Redémarrer :
