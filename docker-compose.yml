@@ -51,6 +51,10 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - JENKINS_MASTER=http://jenkins-master:8080/jenkins
+      - JENKINS_URL=http://jenkins-master:8080/jenkins
+      - JENKINS_AGENT_NAME=docker-agent
+      - JENKINS_SECRET=da0cda4c83e942a18fcfdc206b9aa400771f963bd5cbc6ab4706d8c763241e21
+      - JENKINS_AGENT_WORKDIR=/home/jenkins
     networks:
       - jenkins-network
     depends_on:
@@ -124,6 +128,8 @@ services:
       - GITEA__security__INSTALL_LOCK=true
       - GITEA__security__SECRET_KEY=changeme123456789
       - GITEA__server__ROOT_URL=http://localhost:8090
+      - GITEA__webhook__ALLOWED_HOST_LIST=jenkins-master
+      - GITEA__webhook__SKIP_TLS_VERIFY=true
     networks:
       - jenkins-network
     healthcheck:
