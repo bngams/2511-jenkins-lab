@@ -53,8 +53,14 @@ cd jenkins-lab
 
 ### 2. Lancer l'infrastructure
 ```bash
-# Construire et démarrer tous les services
-docker-compose up -d
+# Avec GitLab (recommandé pour le lab complet, 8GB RAM)
+./scripts/start.sh gitlab
+
+# Avec Gitea (alternative légère, 4GB RAM)
+./scripts/start.sh gitea
+
+# Sans serveur Git (services core uniquement)
+./scripts/start.sh
 
 # Vérifier que tout fonctionne
 docker-compose ps
@@ -65,9 +71,14 @@ docker-compose ps
 | Service | URL | Credentials |
 |---------|-----|-------------|
 | 🔧 Jenkins | http://localhost:8080 | Voir guide |
-| 🦊 GitLab | http://localhost:8090 | root / rootpassword123 |
+| 🦊 GitLab | http://localhost:8090 | root / rootpassword123 (si profil gitlab) |
+| 🐙 Gitea | http://localhost:8090 | Créer compte admin (si profil gitea) |
 | 📊 SonarQube | http://localhost:9000 | admin / admin |
 | 🎯 Staging | http://localhost:8081 | N/A |
+
+> **Note**: GitLab et Gitea sont mutuellement exclusifs (même port). Choisissez selon vos besoins :
+> - **GitLab** : Plateforme complète, gourmande en ressources (8GB RAM recommandé)
+> - **Gitea** : Alternative légère et rapide (4GB RAM suffisant)
 
 ### 4. Suivre le guide
 
@@ -99,8 +110,15 @@ jenkins-lab/
 ### Gestion de l'infrastructure
 
 ```bash
-# Démarrer tous les services
-docker-compose up -d
+# Démarrer avec profil
+./scripts/start.sh gitlab          # Avec GitLab
+./scripts/start.sh gitea           # Avec Gitea
+./scripts/start.sh                 # Sans serveur Git
+
+# Démarrer manuellement avec docker-compose
+docker-compose --profile gitlab up -d     # GitLab
+docker-compose --profile gitea up -d      # Gitea
+docker-compose up -d                      # Core seulement
 
 # Arrêter tous les services
 docker-compose down

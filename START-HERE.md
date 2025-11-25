@@ -12,12 +12,21 @@
 ```bash
 cd jenkins-lab
 chmod +x scripts/*.sh
+# Avec GitLab (ressource-intensive, 8GB RAM recommandé)
+./scripts/start.sh gitlab
+
+# Ou avec Gitea (léger, 4GB RAM suffisant)
+./scripts/start.sh gitea
+
+# Ou sans serveur Git (services core uniquement)
 ./scripts/start.sh
 ```
 
 ### 3️⃣ Accéder aux services
 - **Jenkins**: http://localhost:8080
-- **GitLab**: http://localhost:8090 (root / rootpassword123)
+- **GitLab/Gitea**: http://localhost:8090 (selon votre choix)
+  - GitLab: root / rootpassword123
+  - Gitea: créez votre compte admin au premier démarrage
 - **SonarQube**: http://localhost:9000 (admin / admin)
 
 ## 📖 Documentation
@@ -68,8 +77,10 @@ docker-compose logs -f jenkins-master
 ## 💡 Commandes Essentielles
 
 ```bash
-# Démarrer
-./scripts/start.sh
+# Démarrer (avec profil)
+./scripts/start.sh gitlab   # Avec GitLab
+./scripts/start.sh gitea    # Avec Gitea (léger)
+./scripts/start.sh          # Sans serveur Git
 
 # Arrêter
 ./scripts/stop.sh

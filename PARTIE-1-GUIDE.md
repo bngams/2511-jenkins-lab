@@ -61,14 +61,28 @@
 # Se placer dans le répertoire du lab
 cd jenkins-lab
 
-# Démarrer tous les services
-docker-compose up -d
+# Choisir votre profil de démarrage :
+
+# Option 1 : Avec GitLab (recommandé pour le lab complet)
+./scripts/start.sh gitlab
+
+# Option 2 : Avec Gitea (alternative légère)
+./scripts/start.sh gitea
+
+# Option 3 : Sans serveur Git (services core uniquement)
+./scripts/start.sh
 
 # Vérifier que tous les conteneurs sont démarrés
 docker-compose ps
 ```
 
-**⏱️ Temps de démarrage estimé** : 3-5 minutes (GitLab peut prendre plus de temps)
+**💡 Choix du serveur Git** :
+- **GitLab** : Plateforme complète avec CI/CD intégré (8GB RAM recommandé)
+- **Gitea** : Alternative légère et rapide (4GB RAM suffisant)
+
+**⏱️ Temps de démarrage estimé** :
+- GitLab : 3-5 minutes
+- Gitea : 30 secondes
 
 ### 1.2 Vérifier le statut des services
 
@@ -88,9 +102,12 @@ docker-compose logs -f sonarqube
 | Service | URL | Identifiants par défaut |
 |---------|-----|-------------------------|
 | Jenkins | http://localhost:8080/jenkins | À configurer (voir ci-dessous) |
-| GitLab | http://localhost:8090 | root / rootpassword123 |
+| GitLab | http://localhost:8090 | root / rootpassword123 (si profil gitlab) |
+| Gitea | http://localhost:8090 | Créer compte admin au 1er démarrage (si profil gitea) |
 | SonarQube | http://localhost:9000 | admin / admin |
 | Staging | http://localhost:8081 | N/A |
+
+> **Note** : GitLab et Gitea utilisent le même port (8090) et sont mutuellement exclusifs. Un seul peut être actif à la fois.
 
 ---
 

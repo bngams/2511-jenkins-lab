@@ -10,6 +10,7 @@ volumes:
   gitlab-config:
   gitlab-logs:
   gitlab-data:
+  gitea-data:
   sonarqube-data:
   sonarqube-extensions:
   sonarqube-logs:
@@ -44,11 +45,12 @@ services:
       dockerfile: Dockerfile
     container_name: jenkins-slave
     restart: unless-stopped
+    user: root # Nécessaire pour certaines opérations Docker /!\ Sécurité
     volumes:
       - jenkins-slave-data:/home/jenkins
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
-      - JENKINS_MASTER=http://jenkins-master:8080
+      - JENKINS_MASTER=http://jenkins-master:8080/jenkins
     networks:
       - jenkins-network
     depends_on:
@@ -72,6 +74,7 @@ services:
 
   # GitLab
   gitlab:
+    profiles: ["gitlab"]
     image: gitlab/gitlab-ce:latest
     container_name: gitlab
     restart: unless-stopped
@@ -101,6 +104,34 @@ services:
       timeout: 30s
       retries: 10
       start_period: 180s
+
+  # Gitea (lightweight alternative to GitLab)
+  gitea:
+    profiles: ["gitea"]
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: unless-stopped
+    hostname: gitea
+    ports:
+      - "8090:3000"
+      - "2222:22"
+    volumes:
+      - gitea-data:/data
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - GITEA__database__DB_TYPE=sqlite3
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__security__SECRET_KEY=changeme123456789
+      - GITEA__server__ROOT_URL=http://localhost:8090
+    networks:
+      - jenkins-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # PostgreSQL pour SonarQube
   postgresql:
